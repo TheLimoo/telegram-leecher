@@ -341,11 +341,19 @@ async def download(
     os.makedirs(dest, exist_ok=True)
     
     try:
-        # Pass quality for YouTube downloads
+        # Pass quality only for YouTube downloads
         if source_type == "youtube":
             file_path = await downloader(url, dest, quality, progress_cb)
         else:
             file_path = await downloader(url, dest, progress_cb)
+        
+        # Validate file exists and has content
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Download failed - file not created: {file_path}")
+        
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            raise ValueError(f"Downloaded file is empty (0 bytes): {file_path}")
         
         if os.path.isdir(file_path):
             # For directories (torrents with multiple files), zip them
@@ -353,9 +361,11 @@ async def download(
             shutil.make_archive(file_path, "zip", file_path)
             shutil.rmtree(file_path)
             file_path = zip_path
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                raise ValueError(f"Zipped file is empty (0 bytes): {file_path}")
         
         filename = os.path.basename(file_path)
-        file_size = os.path.getsize(file_path)
         
         if file_size > MAX_FILE_SIZE:
             os.remove(file_path)
