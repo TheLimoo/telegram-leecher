@@ -36,3 +36,9 @@ MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT", 3))
 
 # Clean up files after sending
 AUTO_CLEANUP = os.environ.get("AUTO_CLEANUP", "true").lower() == "true"
+
+# Polling optimization (idle mode)
+POLLING_INTERVAL = int(os.environ.get("POLLING_INTERVAL", 30))  # seconds between polls
+POLLING_TIMEOUT = int(os.environ.get("POLLING_TIMEOUT", 10))     # long-poll timeout
+POLLING_IDLE_SLEEP = int(os.environ.get("POLLING_IDLE_SLEEP", 60))  # sleep when no activity (seconds)
+KEEP_ALIVE_INTERVAL = int(os.environ.get("KEEP_ALIVE_INTERVAL", 300))  # health check interval (5 min)

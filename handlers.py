@@ -440,8 +440,12 @@ async def _process_download(update: Update, url: str, quality: str = "best") -> 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle any message — detect URLs and download."""
+    from bot import record_activity
+    
     if not update.message or not update.message.text:
         return
+    
+    record_activity()  # Record user activity
     
     user_id = update.effective_user.id
     if not _check_access(user_id):
