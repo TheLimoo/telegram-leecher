@@ -169,30 +169,46 @@ async def _download_torrent_file(url: str, dest: str, progress_cb: Optional[Call
 async def _download_youtube(url: str, dest: str, progress_cb: Optional[Callable] = None) -> str:
     """Download via yt-dlp (YouTube/Aparat)."""
     output_template = os.path.join(dest, "%(title)s.%(ext)s")
-    cmd = [
-        "yt-dlp",
-        "-f", "best[filesize<50M]/best[height<=720]/best",
-        "-o", output_template,
-        "--no-playlist",
-        "--merge-output-format", "mp4",
-        "--no-overwrites",
-        "--restrict-filenames",
-        "--print-to-file", "after_move:filepath", "/dev/stdout",
-        url,
+    
+    # Try multiple format strategies
+    formats = [
+        "best[filesize<50M]/best[height<=720]/best",
+        "best[height<=720]/best",
+        "best/worst",
     ]
-    stdout, stderr = await _run_process(cmd)
     
-    # Try to get filename from stdout
-    for line in stdout.strip().splitlines():
-        if line.strip() and os.path.exists(line.strip()):
-            return line.strip()
+    for fmt in formats:
+        cmd = [
+            "yt-dlp",
+            "-f", fmt,
+            "-o", output_template,
+            "--no-playlist",
+            "--merge-output-format", "mp4",
+            "--no-overwrites",
+            "--restrict-filenames",
+            "--print-to-file", "after_move:filepath", "/dev/stdout",
+            "--ignore-errors",
+            "--no-warnings",
+            url,
+        ]
+        try:
+            stdout, stderr = await _run_process(cmd, timeout=180)
+            
+            # Try to get filename from stdout
+            for line in stdout.strip().splitlines():
+                if line.strip() and os.path.exists(line.strip()):
+                    return line.strip()
+            
+            # Fallback: find the file
+            files = list(Path(dest).iterdir())
+            if files:
+                return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+        except TimeoutError:
+            continue
+        except Exception:
+            continue
     
-    # Fallback: find the file
-    files = list(Path(dest).iterdir())
-    if not files:
-        raise FileNotFoundError(f"No file downloaded from {url}")
-    
-    return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+    raise FileNotFoundError(f"No file downloaded from {url} (tried multiple formats)")
 
 
 async def _download_gdrive(url: str, dest: str, progress_cb: Optional[Callable] = None) -> str:

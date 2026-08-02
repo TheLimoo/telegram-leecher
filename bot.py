@@ -14,7 +14,7 @@ import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 from config import BOT_TOKEN, WEBHOOK_URL, PORT, LOCAL_API_URL, DOWNLOAD_DIR
 from handlers import start_cmd, help_cmd, cancel_cmd, handle_message, post_init, test_api_cmd
@@ -96,6 +96,14 @@ def main() -> None:
 
     # Post-init: set bot commands
     app.post_init = post_init
+
+    # Add error handler for conflict and other errors
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.error(f"Exception: {context.error}")
+        if "Conflict" in str(context.error):
+            logger.warning("Another bot instance detected - waiting for it to terminate...")
+    
+    app.add_error_handler(error_handler)
 
     # Start the bot in polling mode (works on Railway)
     logger.info("Starting in polling mode...")
