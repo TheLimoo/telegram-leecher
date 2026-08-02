@@ -187,7 +187,7 @@ def main() -> None:
     # Start the bot in optimized polling mode
     logger.info("Starting in adaptive polling mode (idle-optimized)...")
     import time
-    time.sleep(3)  # Avoid flood control on rapid restarts
+    time.sleep(10)  # Longer delay to avoid flood control on rapid restarts
     
     max_retries = 3
     retry_count = 0
@@ -211,12 +211,28 @@ def main() -> None:
                 logger.error("Invalid token - check BOT_TOKEN environment variable")
                 sys.exit(1)
             
-            # Retry on flood control or network errors
-            if retry_count < max_retries:
-                wait_time = 10 * retry_count
-                logger.warning(f"Retrying in {wait_time}s...")
-                time.sleep(wait_time)
+            # Handle RetryAfter with proper wait time
+            if "RetryAfter" in str(type(e)) or "Flood control" in str(e):
+                # Extract retry_after from exception
+                import re
+                retry_after_match = re.search(r'Retry in (\d+) seconds', str(e))
+                if retry_after_match:
+                    wait_time = int(retry_after_match.group(1)) + 5  # Add buffer
+                    logger.warning(f"Flood control - waiting {wait_time}s (from Telegram)...")
+                    time.sleep(wait_time)
+                else:
+                    # Fallback: exponential backoff
+                    wait_time = 30 * retry_count
+                    logger.warning(f"Flood control - waiting {wait_time}s...")
+                    time.sleep(wait_time)
             else:
+                # Retry on other network errors
+                if retry_count < max_retries:
+                    wait_time = 10 * retry_count
+                    logger.warning(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+            
+            if retry_count >= max_retries:
                 logger.error("Max retries reached, exiting")
                 sys.exit(1)
 
