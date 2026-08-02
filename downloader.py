@@ -271,13 +271,17 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
         "--restrict-filenames",
         "--postprocessor-args", "ffmpeg:-crf 23 -preset fast",
         "--print-to-file", "after_move:filepath", "/dev/stdout",
-        "--ignore-errors",
+        "--no-ignore-errors",  # Fail on error
         "--no-warnings",
         url,
     ]
     
     try:
         stdout, stderr = await _run_process(cmd, timeout=900)
+        
+        logger.info(f"yt-dlp stdout: {stdout[:500]}")
+        if stderr:
+            logger.warning(f"yt-dlp stderr: {stderr[:500]}")
         
         # Try to get filename from stdout
         for line in stdout.strip().splitlines():
@@ -288,18 +292,20 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
         files = list(Path(dest).iterdir())
         valid_files = [f for f in files if f.is_file() and not f.name.endswith('.part')]
         if valid_files:
-            return str(max(valid_files, key=lambda f: f.stat().st_size))
+            largest = max(valid_files, key=lambda f: f.stat().st_size)
+            if largest.stat().st_size > 0:
+                return str(largest)
         
         # If only .part files exist, something went wrong - try without merge
         part_files = [f for f in files if f.is_file() and f.name.endswith('.part')]
         if part_files:
-            # Rename .part to final
             part_file = max(part_files, key=lambda f: f.stat().st_size)
-            final_name = part_file.with_suffix('')  # Remove .part
-            if final_name.suffix == '':
-                final_name = final_name.with_suffix('.mp4')
-            part_file.rename(final_name)
-            return str(final_name)
+            if part_file.stat().st_size > 0:
+                final_name = part_file.with_suffix('')
+                if final_name.suffix == '':
+                    final_name = final_name.with_suffix('.mp4')
+                part_file.rename(final_name)
+                return str(final_name)
     except TimeoutError:
         # Try simpler format on timeout
         cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
@@ -307,7 +313,9 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
         files = list(Path(dest).iterdir())
         valid_files = [f for f in files if f.is_file() and not f.name.endswith('.part')]
         if valid_files:
-            return str(max(valid_files, key=lambda f: f.stat().st_size))
+            largest = max(valid_files, key=lambda f: f.stat().st_size)
+            if largest.stat().st_size > 0:
+                return str(largest)
     
     raise FileNotFoundError(f"No file downloaded from {url}")
 
@@ -343,8 +351,9 @@ async def _download_instagram(url: str, dest: str, progress_cb: Optional[Callabl
         "--merge-output-format", "mp4",
         "--no-overwrites",
         "--restrict-filenames",
+        "--postprocessor-args", "ffmpeg:-crf 23 -preset fast",
         "--print-to-file", "after_move:filepath", "/dev/stdout",
-        "--ignore-errors",
+        "--no-ignore-errors",
         "--no-warnings",
         url,
     ]
@@ -352,22 +361,43 @@ async def _download_instagram(url: str, dest: str, progress_cb: Optional[Callabl
     try:
         stdout, stderr = await _run_process(cmd, timeout=180)
         
+        logger.info(f"yt-dlp instagram stdout: {stdout[:500]}")
+        if stderr:
+            logger.warning(f"yt-dlp instagram stderr: {stderr[:500]}")
+        
         # Try to get filename from stdout
         for line in stdout.strip().splitlines():
             if line.strip() and os.path.exists(line.strip()):
                 return line.strip()
         
-        # Fallback: find the file
+        # Fallback: find the file (skip .part files)
         files = list(Path(dest).iterdir())
-        if files:
-            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+        valid_files = [f for f in files if f.is_file() and not f.name.endswith('.part')]
+        if valid_files:
+            largest = max(valid_files, key=lambda f: f.stat().st_size)
+            if largest.stat().st_size > 0:
+                return str(largest)
+        
+        # If only .part files exist
+        part_files = [f for f in files if f.is_file() and f.name.endswith('.part')]
+        if part_files:
+            part_file = max(part_files, key=lambda f: f.stat().st_size)
+            if part_file.stat().st_size > 0:
+                final_name = part_file.with_suffix('')
+                if final_name.suffix == '':
+                    final_name = final_name.with_suffix('.mp4')
+                part_file.rename(final_name)
+                return str(final_name)
     except TimeoutError:
         # Try simpler format
         cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
         stdout, stderr = await _run_process(cmd, timeout=120)
         files = list(Path(dest).iterdir())
-        if files:
-            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+        valid_files = [f for f in files if f.is_file() and not f.name.endswith('.part')]
+        if valid_files:
+            largest = max(valid_files, key=lambda f: f.stat().st_size)
+            if largest.stat().st_size > 0:
+                return str(largest)
     
     raise FileNotFoundError(f"No file downloaded from Instagram: {url}")
 
