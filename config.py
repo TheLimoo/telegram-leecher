@@ -11,11 +11,11 @@ ALLOWED_USERS = [
     if uid.strip().isdigit()
 ]
 
-# Max download size in bytes (default: 2GB)
-MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", 2 * 1024 * 1024 * 1024))
+# Max download size in bytes (default: 2GB, but Railway volume is 500MB)
+MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", 450 * 1024 * 1024))  # 450MB (50MB buffer)
 
 # Temp download directory
-DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", "/tmp/downloads")
+DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", "/data/downloads")
 
 # Webhook config (empty = polling mode)
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")

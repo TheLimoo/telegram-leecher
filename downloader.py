@@ -380,9 +380,12 @@ def cleanup(file_path: str) -> None:
     try:
         parent = os.path.dirname(file_path)
         if parent and parent.startswith(DOWNLOAD_DIR):
+            # Remove the entire temp directory
             shutil.rmtree(parent, ignore_errors=True)
+            logger.info(f"Cleaned up: {parent}")
         elif os.path.exists(file_path):
             os.remove(file_path)
+            logger.info(f"Cleaned up: {file_path}")
     except Exception as e:
         logger.warning(f"Cleanup failed: {e}")
 
