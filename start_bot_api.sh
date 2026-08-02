@@ -7,9 +7,9 @@ if [ -n "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; then
     mkdir -p /tmp/botapi-data
     
     telegram-bot-api \
-        --api_id="$TELEGRAM_API_ID" \
-        --api_hash="$TELEGRAM_API_HASH" \
-        --http_port=8081 \
+        --api-id="$TELEGRAM_API_ID" \
+        --api-hash="$TELEGRAM_API_HASH" \
+        --http-port=8081 \
         --dir=/tmp/botapi-data \
         --local &
     

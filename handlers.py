@@ -7,7 +7,7 @@ from telegram import Update, BotCommand
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode, ChatAction
 
-from config import ALLOWED_USERS, AUTO_CLEANUP
+from config import ALLOWED_USERS, AUTO_CLEANUP, LOCAL_API_URL
 from downloader import detect_source, download, cleanup, get_file_info
 
 logger = logging.getLogger(__name__)
@@ -101,6 +101,45 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text("❌ Download cancelled.")
     else:
         await update.message.reply_text("No active download to cancel.")
+
+
+async def test_api_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Test if self-hosted Bot API is working."""
+    if not _check_access(update.effective_user.id):
+        await update.message.reply_text("⛔ Access denied.")
+        return
+    
+    if LOCAL_API_URL:
+        import aiohttp
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{LOCAL_API_URL}/", timeout=5) as resp:
+                    if resp.status == 200:
+                        await update.message.reply_text(
+                            "✅ <b>Self-hosted Bot API is running!</b>\n"
+                            f"📍 URL: <code>{LOCAL_API_URL}</code>\n"
+                            "📤 Upload limit: <b>2 GB</b>",
+                            parse_mode=ParseMode.HTML,
+                        )
+                    else:
+                        await update.message.reply_text(
+                            f"⚠️ Bot API responded with status {resp.status}",
+                            parse_mode=ParseMode.HTML,
+                        )
+        except Exception as e:
+            await update.message.reply_text(
+                f"❌ <b>Bot API not reachable:</b>\n<code>{e}</code>\n\n"
+                "Check if TELEGRAM_API_ID/HASH are set correctly.",
+                parse_mode=ParseMode.HTML,
+            )
+    else:
+        await update.message.reply_text(
+            "ℹ️ <b>Using standard Telegram Bot API</b>\n"
+            "📍 URL: <code>https://api.telegram.org</code>\n"
+            "📤 Upload limit: <b>50 MB</b>\n\n"
+            "To enable unlimited uploads, set TELEGRAM_API_ID and TELEGRAM_API_HASH.",
+            parse_mode=ParseMode.HTML,
+        )
 
 
 async def _process_download(update: Update, url: str) -> None:
@@ -224,4 +263,5 @@ async def post_init(application) -> None:
         BotCommand("start", "Welcome message"),
         BotCommand("help", "How to use"),
         BotCommand("cancel", "Cancel active download"),
+        BotCommand("testapi", "Test self-hosted Bot API"),
     ])
