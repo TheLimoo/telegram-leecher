@@ -73,10 +73,10 @@ def main() -> None:
     start_health_server()
 
     # Build application
-    # Use local_mode for self-hosted Bot API (properly handles token in URL)
+    # Use self-hosted Bot API (removes 50MB limit)
     if LOCAL_API_URL:
-        logger.info(f"Using self-hosted Bot API (local_mode=True)")
-        builder = ApplicationBuilder().token(BOT_TOKEN).local_mode(True)
+        logger.info(f"Using self-hosted Bot API: {LOCAL_API_URL}")
+        builder = ApplicationBuilder().token(BOT_TOKEN).base_url(LOCAL_API_URL).base_file_url(LOCAL_API_URL)
     else:
         logger.info("Using standard api.telegram.org (50MB limit)")
         builder = ApplicationBuilder().token(BOT_TOKEN)
