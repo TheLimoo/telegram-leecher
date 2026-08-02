@@ -64,23 +64,17 @@ def main() -> None:
 
     # Start the bot
     if WEBHOOK_URL:
-        # Webhook mode (production)
-        # python-telegram-bot's webhook server handles health checks on same port
-        webhook_url = f"{WEBHOOK_URL}/webhook"
-        logger.info(f"Starting in webhook mode: {webhook_url}")
-        
+        # Webhook mode (production) - requires proper health endpoint setup
+        # For now, use polling mode which works reliably on Railway
+        logger.info("WEBHOOK_URL set but using polling mode for Railway compatibility")
+        logger.info("Starting in polling mode...")
         try:
-            app.run_webhook(
-                listen="0.0.0.0",
-                port=PORT,
-                url_path="webhook",
-                webhook_url=webhook_url,
-            )
+            app.run_polling(drop_pending_updates=True)
         except Exception as e:
-            logger.error(f"Webhook failed: {e}")
+            logger.error(f"Polling failed: {e}")
             sys.exit(1)
     else:
-        # Polling mode (local dev / Railway without webhook)
+        # Polling mode (local dev / Railway)
         logger.info("Starting in polling mode...")
         try:
             app.run_polling(drop_pending_updates=True)
