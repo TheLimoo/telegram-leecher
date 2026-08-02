@@ -337,34 +337,35 @@ async def _process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             )
             formats = await get_youtube_formats(url)
             
+            # If no formats available, proceed with default download
             if not formats:
-                await status_msg.edit_text("❌ Could not get video info.")
+                logger.info(f"No formats available, using default download for {url}")
+                # Fall through to normal download
+            else:
+                # Show quality selection
+                keyboard = []
+                for fmt in formats:
+                    btn_text = f"{fmt['height']}p - {fmt['filesize_str']} ({fmt['ext']})"
+                    keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"quality:{fmt['format_id']}")])
+                
+                # Add best/worst options
+                keyboard.append([
+                    InlineKeyboardButton("🎬 Best", callback_data="quality:best"),
+                    InlineKeyboardButton("📉 Worst", callback_data="quality:worst")
+                ])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await status_msg.edit_text(
+                    f"📺 <b>Select YouTube quality:</b>\n\n"
+                    f"<code>{url[:80]}</code>",
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML,
+                )
+                
+                # Store pending download for callback
+                context.user_data["pending_url"] = url
                 return
-            
-            # Show quality selection
-            keyboard = []
-            for fmt in formats:
-                btn_text = f"{fmt['height']}p - {fmt['filesize_str']} ({fmt['ext']})"
-                keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"quality:{fmt['format_id']}")])
-            
-            # Add best/worst options
-            keyboard.append([
-                InlineKeyboardButton("🎬 Best", callback_data="quality:best"),
-                InlineKeyboardButton("📉 Worst", callback_data="quality:worst")
-            ])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await status_msg.edit_text(
-                f"📺 <b>Select YouTube quality:</b>\n\n"
-                f"<code>{url[:80]}</code>",
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML,
-            )
-            
-            # Store pending download for callback
-            context.user_data["pending_url"] = url
-            return
         
         # Show downloading status
         await status_msg.edit_text(
