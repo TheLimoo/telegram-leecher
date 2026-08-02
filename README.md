@@ -68,10 +68,18 @@ docker-compose up -d
 2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub**
 3. Select your repo
 4. Railway auto-detects `railway.json`
-5. Add environment variables in the **Variables** tab
-6. Deploy!
+5. **Add a persistent volume** (IMPORTANT):
+   - Go to the **Volume** tab
+   - Click **+ Add Volume**
+   - Mount path: `/data`
+   - Size: `500 MB` (or more)
+6. Add environment variables in the **Variables** tab:
+   - `BOT_TOKEN` — Your bot token
+   - `TELEGRAM_API_ID` — From [my.telegram.org](https://my.telegram.org) (optional, for >50MB uploads)
+   - `TELEGRAM_API_HASH` — From [my.telegram.org](https://my.telegram.org) (optional)
+7. Deploy!
 
-> ⚠️ Railway free tier has limited credits. Consider the $5/month plan for heavy use.
+> ⚠️ **Volume is REQUIRED** for downloads! Without it, the bot can't save files. The volume size should be at least 500MB (default limit is 450MB per file).
 
 ## 🔓 Self-Hosted Bot API (Unlimited Uploads)
 
@@ -108,10 +116,13 @@ If you don't set `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`, the bot falls back to th
 | `LOCAL_API_URL` | ❌ | `http://127.0.0.1:8081` | Self-hosted Bot API URL |
 | `TELEGRAM_API_ID` | ❌ | — | From my.telegram.org |
 | `TELEGRAM_API_HASH` | ❌ | — | From my.telegram.org |
-| `MAX_FILE_SIZE` | ❌ | `2GB` | Max download size |
+| `MAX_FILE_SIZE` | ❌ | `450MB` | Max download size (Railway volume: 500MB) |
+| `DOWNLOAD_DIR` | ❌ | `/data/downloads` | **MUST be `/data` for Railway volume** |
 | `DOWNLOAD_TIMEOUT` | ❌ | `300` | Download timeout (seconds) |
 | `MAX_CONCURRENT` | ❌ | `3` | Max concurrent downloads |
 | `AUTO_CLEANUP` | ❌ | `true` | Auto-delete files after sending |
+| `POLLING_INTERVAL` | ❌ | `10` | Active polling interval (seconds) |
+| `POLLING_IDLE_SLEEP` | ❌ | `30` | Idle polling interval (seconds) |
 
 ## 🤖 Bot Commands
 
