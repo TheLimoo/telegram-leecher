@@ -178,21 +178,47 @@ def main() -> None:
         logger.error(f"Exception: {context.error}")
         if "Conflict" in str(context.error):
             logger.warning("Another bot instance detected - waiting for it to terminate...")
+        elif "RetryAfter" in str(type(context.error)) or "Flood control" in str(context.error):
+            logger.warning("Flood control in handler, backing off...")
+            await asyncio.sleep(5)
     
     app.add_error_handler(error_handler)
 
     # Start the bot in optimized polling mode
     logger.info("Starting in adaptive polling mode (idle-optimized)...")
-    try:
-        # Use polling with idle optimization
-        app.run_polling(
-            drop_pending_updates=True,
-            poll_interval=POLLING_INTERVAL,
-            timeout=POLLING_TIMEOUT,
-        )
-    except Exception as e:
-        logger.error(f"Polling failed: {e}")
-        sys.exit(1)
+    import time
+    time.sleep(3)  # Avoid flood control on rapid restarts
+    
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            # Use polling with idle optimization
+            app.run_polling(
+                drop_pending_updates=True,
+                poll_interval=POLLING_INTERVAL,
+                timeout=POLLING_TIMEOUT,
+                close_loop=False,
+            )
+            break  # Success, exit loop
+        except Exception as e:
+            logger.error(f"Polling failed (attempt {retry_count + 1}/{max_retries}): {e}")
+            retry_count += 1
+            
+            # Don't retry on InvalidToken - token is wrong
+            if "InvalidToken" in str(type(e)) or "Unauthorized" in str(e):
+                logger.error("Invalid token - check BOT_TOKEN environment variable")
+                sys.exit(1)
+            
+            # Retry on flood control or network errors
+            if retry_count < max_retries:
+                wait_time = 10 * retry_count
+                logger.warning(f"Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                logger.error("Max retries reached, exiting")
+                sys.exit(1)
 
 
 if __name__ == "__main__":
