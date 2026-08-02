@@ -21,10 +21,8 @@ DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", "/data/downloads")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 PORT = int(os.environ.get("PORT", 8443))
 
-# Self-hosted Bot API (removes 50MB limit)
+# Self-hosted Bot API
 LOCAL_API_URL = os.environ.get("LOCAL_API_URL", "http://127.0.0.1:8081")
-
-# Telegram API credentials for self-hosted Bot API server
 TELEGRAM_API_ID = os.environ.get("TELEGRAM_API_ID", "")
 TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
 

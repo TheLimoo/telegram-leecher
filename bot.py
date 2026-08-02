@@ -19,7 +19,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 from config import (
     BOT_TOKEN, WEBHOOK_URL, PORT, LOCAL_API_URL, DOWNLOAD_DIR,
-    POLLING_INTERVAL, POLLING_TIMEOUT, POLLING_IDLE_SLEEP, KEEP_ALIVE_INTERVAL
+    POLLING_INTERVAL, POLLING_TIMEOUT, POLLING_IDLE_SLEEP, KEEP_ALIVE_INTERVAL,
+    TELEGRAM_API_ID, TELEGRAM_API_HASH
 )
 from handlers import start_cmd, help_cmd, cancel_cmd, handle_message, post_init, test_api_cmd, quality_cmd
 
@@ -143,18 +144,37 @@ def main() -> None:
     start_health_server()
 
     # Build application
-    if LOCAL_API_URL:
+    # Self-hosted Bot API for >50MB uploads (requires API_ID + API_HASH)
+    # Falls back to standard api.telegram.org if not configured
+    if LOCAL_API_URL and TELEGRAM_API_ID and TELEGRAM_API_HASH:
         api_base = LOCAL_API_URL.rstrip('/')
-        base_url = f"{api_base}/bot"
-        base_file_url = f"{api_base}/file/bot"
-        logger.info(f"Using self-hosted Bot API: {base_url}")
-        builder = ApplicationBuilder().token(BOT_TOKEN).base_url(base_url).base_file_url(base_file_url)
+        if not api_base.endswith('/bot'):
+            api_base = f"{api_base}/bot"
+        
+        builder = (
+            ApplicationBuilder()
+            .token(BOT_TOKEN)
+            .base_url(api_base)
+            .base_file_url(f"{LOCAL_API_URL.rstrip('/')}/file/bot")
+            .read_timeout(600)
+            .write_timeout(600)
+            .connect_timeout(30)
+            .pool_timeout(30)
+        )
+        logger.info(f"Using self-hosted Bot API: {LOCAL_API_URL}")
     else:
-        logger.info("Using standard api.telegram.org (50MB limit)")
-        builder = ApplicationBuilder().token(BOT_TOKEN)
-
-    # Increase timeouts for large file uploads
-    builder = builder.read_timeout(600).write_timeout(600).connect_timeout(30).pool_timeout(30)
+        # Standard Telegram Bot API (50MB limit, more stable)
+        builder = (
+            ApplicationBuilder()
+            .token(BOT_TOKEN)
+            .read_timeout(600)
+            .write_timeout(600)
+            .connect_timeout(30)
+            .pool_timeout(30)
+        )
+        logger.info("Using standard Telegram Bot API (api.telegram.org, 50MB limit)")
+        if LOCAL_API_URL:
+            logger.warning("LOCAL_API_URL set but TELEGRAM_API_ID/HASH missing - self-hosted API disabled")
 
     try:
         app = builder.build()
