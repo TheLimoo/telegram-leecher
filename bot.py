@@ -30,18 +30,20 @@ class HealthHandler(BaseHTTPRequestHandler):
     """Simple health check handler for Railway/Render."""
     
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"OK")
+        if self.path in ("/", "/health", "/healthz", "/ready"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+        else:
+            self.send_response(404)
+            self.end_headers()
     
     def do_HEAD(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
+        self.do_GET()
     
     def log_message(self, format, *args):
-        pass  # Suppress access logs
+        logger.info(f"Health check: {self.path} -> 200")
 
 
 def start_health_server():
