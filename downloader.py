@@ -271,7 +271,7 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
     ]
     
     try:
-        stdout, stderr = await _run_process(cmd, timeout=300)
+        stdout, stderr = await _run_process(cmd, timeout=900)
         
         # Try to get filename from stdout
         for line in stdout.strip().splitlines():
@@ -285,7 +285,7 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
     except TimeoutError:
         # Try simpler format on timeout
         cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
-        stdout, stderr = await _run_process(cmd, timeout=180)
+        stdout, stderr = await _run_process(cmd, timeout=300)
         files = list(Path(dest).iterdir())
         if files:
             return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))

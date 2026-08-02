@@ -29,7 +29,7 @@ TELEGRAM_API_ID = os.environ.get("TELEGRAM_API_ID", "")
 TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
 
 # Download timeout in seconds
-DOWNLOAD_TIMEOUT = int(os.environ.get("DOWNLOAD_TIMEOUT", 300))
+DOWNLOAD_TIMEOUT = int(os.environ.get("DOWNLOAD_TIMEOUT", 900))  # 15 min for large files
 
 # Max concurrent downloads
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT", 3))
