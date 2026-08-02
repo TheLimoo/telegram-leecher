@@ -4,7 +4,7 @@
 Supports:
 - Polling mode (local dev)
 - Webhook mode (production on Render/Railway)
-- Self-hosted Bot API (removes 50MB upload limit)
+- Self-hosted Bot API (removes 50MB upload limit) - uses local_mode
 - Health check endpoint for Railway/Render
 """
 import logging
@@ -79,14 +79,13 @@ def main() -> None:
     start_health_server()
 
     # Build application
-    builder = ApplicationBuilder().token(BOT_TOKEN)
-    
+    # Use local_mode for self-hosted Bot API (properly handles token in URL)
     if LOCAL_API_URL:
-        builder = builder.base_url(LOCAL_API_URL)
-        builder = builder.base_file_url(LOCAL_API_URL)
-        logger.info(f"Using self-hosted Bot API: {LOCAL_API_URL}")
+        logger.info(f"Using self-hosted Bot API at {LOCAL_API_URL} (local_mode=True)")
+        builder = ApplicationBuilder().token(BOT_TOKEN).local_mode(True)
     else:
         logger.info("Using standard api.telegram.org (50MB limit)")
+        builder = ApplicationBuilder().token(BOT_TOKEN)
 
     try:
         app = builder.build()
