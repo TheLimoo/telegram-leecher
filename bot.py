@@ -5,11 +5,13 @@ Supports:
 - Polling mode (local dev)
 - Webhook mode (production on Render/Railway)
 - Self-hosted Bot API (removes 50MB upload limit)
+- Health check endpoint for Railway/Render
 """
 import logging
 import os
 import sys
-import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
@@ -24,6 +26,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class HealthHandler(BaseHTTPRequestHandler):
+    """Simple health check handler for Railway/Render."""
+    
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"OK")
+    
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+    
+    def log_message(self, format, *args):
+        pass  # Suppress access logs
+
+
+def start_health_server():
+    """Start health check server in background thread."""
+    server = HTTPServer(("0.0.0.0", PORT), HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info(f"Health check server started on port {PORT}")
+
+
 def main() -> None:
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not set! Set it in environment or .env file.")
@@ -31,6 +59,9 @@ def main() -> None:
 
     # Ensure download directory exists
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+    # Start health check server (needed for Railway/Render)
+    start_health_server()
 
     # Build application
     # If LOCAL_API_URL is set, connect to self-hosted Bot API server
