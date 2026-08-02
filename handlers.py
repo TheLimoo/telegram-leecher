@@ -113,17 +113,21 @@ async def test_api_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         import aiohttp
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{LOCAL_API_URL}/", timeout=5) as resp:
+                # Use getMe endpoint (standard Bot API endpoint)
+                async with session.post(f"{LOCAL_API_URL}/bot{context.bot.token}/getMe", timeout=5) as resp:
                     if resp.status == 200:
+                        data = await resp.json()
                         await update.message.reply_text(
                             "✅ <b>Self-hosted Bot API is running!</b>\n"
                             f"📍 URL: <code>{LOCAL_API_URL}</code>\n"
+                            f"🤖 Bot: @{data.get('result', {}).get('username', 'unknown')}\n"
                             "📤 Upload limit: <b>2 GB</b>",
                             parse_mode=ParseMode.HTML,
                         )
                     else:
+                        text = await resp.text()
                         await update.message.reply_text(
-                            f"⚠️ Bot API responded with status {resp.status}",
+                            f"⚠️ Bot API responded with status {resp.status}\n<code>{text[:200]}</code>",
                             parse_mode=ParseMode.HTML,
                         )
         except Exception as e:
