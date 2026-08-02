@@ -86,6 +86,9 @@ def main() -> None:
         logger.info("Using standard api.telegram.org (50MB limit)")
         builder = ApplicationBuilder().token(BOT_TOKEN)
 
+    # Increase timeouts for large file uploads (default 30s -> 10 min)
+    builder = builder.read_timeout(600).write_timeout(600).connect_timeout(30).pool_timeout(30)
+
     try:
         app = builder.build()
     except Exception as e:
