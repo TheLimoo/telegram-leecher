@@ -21,7 +21,7 @@ from config import (
     BOT_TOKEN, WEBHOOK_URL, PORT, LOCAL_API_URL, DOWNLOAD_DIR,
     POLLING_INTERVAL, POLLING_TIMEOUT, POLLING_IDLE_SLEEP, KEEP_ALIVE_INTERVAL
 )
-from handlers import start_cmd, help_cmd, cancel_cmd, handle_message, post_init, test_api_cmd
+from handlers import start_cmd, help_cmd, cancel_cmd, handle_message, post_init, test_api_cmd, quality_cmd
 
 # Setup logging
 logging.basicConfig(
@@ -166,6 +166,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("cancel", cancel_cmd))
+    app.add_handler(CommandHandler("quality", quality_cmd))
     app.add_handler(CommandHandler("testapi", test_api_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 

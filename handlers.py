@@ -313,7 +313,7 @@ async def handle_youtube_quality_callback(update: Update, context: ContextTypes.
             cleanup(file_path)
 
 
-async def _process_download(update: Update, url: str, quality: str = "best") -> None:
+async def _process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, quality: str = "best") -> None:
     """Process a single URL download."""
     user_id = update.effective_user.id
     source_type = detect_source(url)
@@ -467,7 +467,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             continue
         
         # Start download in background
-        task = asyncio.create_task(_process_download(update, url))
+        task = asyncio.create_task(_process_download(update, context, url))
         _active_downloads[user_id] = task
 
 
