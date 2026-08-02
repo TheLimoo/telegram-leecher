@@ -4,8 +4,8 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     aria2 \
     ffmpeg \
+    build-essential \
     cmake \
-    g++ \
     git \
     libssl-dev \
     zlib1g-dev \
