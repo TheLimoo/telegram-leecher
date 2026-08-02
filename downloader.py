@@ -1,5 +1,6 @@
 """Download engine — detects source type and downloads files."""
 import asyncio
+import json
 import os
 import re
 import shutil
@@ -15,7 +16,8 @@ logger = logging.getLogger(__name__)
 MAGNET_RE = re.compile(r"^magnet:\?xt=urn:", re.IGNORECASE)
 TORRENT_FILE_RE = re.compile(r"^https?://.*\.torrent(\?.*)?$", re.IGNORECASE)
 YOUTUBE_RE = re.compile(
-    r"(?:youtube\.com|youtu\.be|youtube-nocookie\.com)", re.IGNORECASE
+    r"(?:youtube\.com|youtu\.be|youtube-nocookie\.com)",
+    re.IGNORECASE
 )
 APARAT_RE = re.compile(r"aparat\.com", re.IGNORECASE)
 GDRIVE_RE = re.compile(
@@ -38,27 +40,6 @@ def detect_source(url: str) -> str:
     return "direct"
 
 
-def _get_aria2_filename(url: str) -> Optional[str]:
-    """Try to get filename from aria2c header check."""
-    try:
-        import subprocess
-
-        result = subprocess.run(
-            ["aria2c", "--dry-run", "--follow-torrent=false", url],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        for line in result.stderr.splitlines():
-            if "Files:" in line or "fname=" in line:
-                match = re.search(r"fname=([^\s]+)", line)
-                if match:
-                    return match.group(1)
-    except Exception:
-        pass
-    return None
-
-
 async def _run_process(cmd: list[str], timeout: int = DOWNLOAD_TIMEOUT) -> tuple[str, str]:
     """Run an async subprocess and return (stdout, stderr)."""
     proc = await asyncio.create_subprocess_exec(
@@ -70,6 +51,79 @@ async def _run_process(cmd: list[str], timeout: int = DOWNLOAD_TIMEOUT) -> tuple
     except asyncio.TimeoutError:
         proc.kill()
         raise TimeoutError(f"Download timed out after {timeout}s")
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format bytes to human-readable size."""
+    if size_bytes is None:
+        return "Unknown"
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
+
+
+async def get_youtube_formats(url: str) -> list[dict]:
+    """Get available formats for a YouTube/Aparat video with estimated sizes."""
+    cmd = [
+        "yt-dlp",
+        "-J",  # JSON output
+        "--no-playlist",
+        "--no-warnings",
+        url,
+    ]
+    
+    try:
+        stdout, stderr = await _run_process(cmd, timeout=30)
+        data = json.loads(stdout)
+        
+        formats = []
+        seen_resolutions = set()
+        
+        for fmt in data.get("formats", []):
+            height = fmt.get("height")
+            ext = fmt.get("ext", "mp4")
+            filesize = fmt.get("filesize") or fmt.get("filesize_approx")
+            format_id = fmt.get("format_id", "")
+            vcodec = fmt.get("vcodec", "none")
+            acodec = fmt.get("acodec", "none")
+            
+            # Skip audio-only or unknown formats
+            if not height or vcodec == "none":
+                continue
+            
+            # Group by resolution, prefer mp4
+            if height in seen_resolutions:
+                continue
+            
+            # Estimate size if not available (approx based on bitrate)
+            if not filesize:
+                tbr = fmt.get("tbr")  # Total bitrate in kbps
+                duration = data.get("duration", 0)
+                if tbr and duration:
+                    filesize = int((tbr * 1024 / 8) * duration)  # kbps to bytes
+            
+            formats.append({
+                "format_id": format_id,
+                "height": height,
+                "ext": ext,
+                "filesize": filesize,
+                "filesize_str": _format_size(filesize),
+                "vcodec": vcodec,
+                "acodec": acodec,
+            })
+            seen_resolutions.add(height)
+        
+        # Sort by resolution (highest first)
+        formats.sort(key=lambda x: x["height"], reverse=True)
+        
+        # Keep only best 5 formats to avoid overwhelming the user
+        return formats[:5]
+    
+    except Exception as e:
+        logger.error(f"Failed to get formats: {e}")
+        return []
 
 
 async def _download_direct(url: str, dest: str, progress_cb: Optional[Callable] = None) -> str:
@@ -118,7 +172,7 @@ async def _download_magnet(url: str, dest: str, progress_cb: Optional[Callable] 
         "--console-log-level=warn",
         url,
     ]
-    stdout, stderr = await _run_process(cmd, timeout=DOWNLOAD_TIMEOUT + 300)  # extra time for torrents
+    stdout, stderr = await _run_process(cmd, timeout=DOWNLOAD_TIMEOUT + 300)
     
     files = list(Path(dest).iterdir())
     if not files:
@@ -126,7 +180,6 @@ async def _download_magnet(url: str, dest: str, progress_cb: Optional[Callable] 
     
     # For torrents, might have multiple files — pick the largest
     if len(files) == 1 and files[0].is_dir():
-        # Single directory — return path to it
         return str(files[0])
     
     return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
@@ -166,49 +219,60 @@ async def _download_torrent_file(url: str, dest: str, progress_cb: Optional[Call
     return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
 
 
-async def _download_youtube(url: str, dest: str, progress_cb: Optional[Callable] = None) -> str:
-    """Download via yt-dlp (YouTube/Aparat)."""
+async def _download_youtube(url: str, dest: str, quality: str = "best", progress_cb: Optional[Callable] = None) -> str:
+    """Download via yt-dlp (YouTube/Aparat) with quality selection."""
     output_template = os.path.join(dest, "%(title)s.%(ext)s")
     
-    # Try multiple format strategies
-    formats = [
-        "best[filesize<50M]/best[height<=720]/best",
-        "best[height<=720]/best",
-        "best/worst",
+    # Format selection based on quality
+    if quality == "best":
+        fmt = "bestvideo+bestaudio/best"
+    elif quality == "720p":
+        fmt = "best[height<=720]+bestaudio/best[height<=720]/best"
+    elif quality == "480p":
+        fmt = "best[height<=480]+bestaudio/best[height<=480]/best"
+    elif quality == "360p":
+        fmt = "best[height<=360]+bestaudio/best[height<=360]/best"
+    elif quality == "worst":
+        fmt = "worstvideo+worstaudio/worst"
+    else:
+        # Assume it's a format_id
+        fmt = f"{quality}+bestaudio/{quality}/best"
+    
+    cmd = [
+        "yt-dlp",
+        "-f", fmt,
+        "-o", output_template,
+        "--no-playlist",
+        "--merge-output-format", "mp4",
+        "--no-overwrites",
+        "--restrict-filenames",
+        "--print-to-file", "after_move:filepath", "/dev/stdout",
+        "--ignore-errors",
+        "--no-warnings",
+        url,
     ]
     
-    for fmt in formats:
-        cmd = [
-            "yt-dlp",
-            "-f", fmt,
-            "-o", output_template,
-            "--no-playlist",
-            "--merge-output-format", "mp4",
-            "--no-overwrites",
-            "--restrict-filenames",
-            "--print-to-file", "after_move:filepath", "/dev/stdout",
-            "--ignore-errors",
-            "--no-warnings",
-            url,
-        ]
-        try:
-            stdout, stderr = await _run_process(cmd, timeout=180)
-            
-            # Try to get filename from stdout
-            for line in stdout.strip().splitlines():
-                if line.strip() and os.path.exists(line.strip()):
-                    return line.strip()
-            
-            # Fallback: find the file
-            files = list(Path(dest).iterdir())
-            if files:
-                return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
-        except TimeoutError:
-            continue
-        except Exception:
-            continue
+    try:
+        stdout, stderr = await _run_process(cmd, timeout=300)
+        
+        # Try to get filename from stdout
+        for line in stdout.strip().splitlines():
+            if line.strip() and os.path.exists(line.strip()):
+                return line.strip()
+        
+        # Fallback: find the file
+        files = list(Path(dest).iterdir())
+        if files:
+            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+    except TimeoutError:
+        # Try simpler format
+        cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
+        stdout, stderr = await _run_process(cmd, timeout=180)
+        files = list(Path(dest).iterdir())
+        if files:
+            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
     
-    raise FileNotFoundError(f"No file downloaded from {url} (tried multiple formats)")
+    raise FileNotFoundError(f"No file downloaded from {url}")
 
 
 async def _download_gdrive(url: str, dest: str, progress_cb: Optional[Callable] = None) -> str:
@@ -240,6 +304,7 @@ DOWNLOADERS = {
 
 async def download(
     url: str,
+    quality: str = "best",
     progress_cb: Optional[Callable] = None,
 ) -> tuple[str, str, str]:
     """
@@ -258,7 +323,11 @@ async def download(
     os.makedirs(dest, exist_ok=True)
     
     try:
-        file_path = await downloader(url, dest, progress_cb)
+        # Pass quality for YouTube downloads
+        if source_type == "youtube":
+            file_path = await downloader(url, dest, quality, progress_cb)
+        else:
+            file_path = await downloader(url, dest, progress_cb)
         
         if os.path.isdir(file_path):
             # For directories (torrents with multiple files), zip them
