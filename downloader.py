@@ -232,19 +232,19 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
     """Download via yt-dlp (YouTube/Aparat) with quality selection."""
     output_template = os.path.join(dest, "%(title)s.%(ext)s")
     
-    # Format selection based on quality
+    # Format selection based on quality - use bestvideo+bestaudio strategy
     if quality == "best":
         fmt = "bestvideo+bestaudio/best"
     elif quality == "720p":
-        fmt = "best[height<=720]+bestaudio/best[height<=720]/best"
+        fmt = "bestvideo[height<=720]+bestaudio[ext=m4a]/best[height<=720]"
     elif quality == "480p":
-        fmt = "best[height<=480]+bestaudio/best[height<=480]/best"
+        fmt = "bestvideo[height<=480]+bestaudio[ext=m4a]/best[height<=480]"
     elif quality == "360p":
-        fmt = "best[height<=360]+bestaudio/best[height<=360]/best"
+        fmt = "bestvideo[height<=360]+bestaudio[ext=m4a]/best[height<=360]"
     elif quality == "worst":
         fmt = "worstvideo+worstaudio/worst"
     else:
-        # Assume it's a format_id
+        # Assume it's a format_id from quality selection
         fmt = f"{quality}+bestaudio/{quality}/best"
     
     cmd = [
@@ -255,6 +255,7 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
         "--merge-output-format", "mp4",
         "--no-overwrites",
         "--restrict-filenames",
+        "--postprocessor-args", "ffmpeg:-crf 23",  # Balance quality/size
         "--print-to-file", "after_move:filepath", "/dev/stdout",
         "--ignore-errors",
         "--no-warnings",
@@ -274,7 +275,7 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
         if files:
             return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
     except TimeoutError:
-        # Try simpler format
+        # Try simpler format on timeout
         cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
         stdout, stderr = await _run_process(cmd, timeout=180)
         files = list(Path(dest).iterdir())
