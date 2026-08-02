@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
@@ -55,9 +56,21 @@ def start_health_server():
 
 
 def main() -> None:
+    logger.info("=== Telegram Leecher Bot Starting ===")
+    logger.info(f"PORT: {PORT}")
+    logger.info(f"WEBHOOK_URL: {WEBHOOK_URL or 'not set (polling mode)'}")
+    logger.info(f"LOCAL_API_URL: {LOCAL_API_URL or 'not set (standard API)'}")
+    logger.info(f"DOWNLOAD_DIR: {DOWNLOAD_DIR}")
+    
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not set! Set it in environment or .env file.")
-        sys.exit(1)
+        # Don't exit - keep health server alive so Railway sees it
+        logger.warning("Running without BOT_TOKEN - health server only")
+        start_health_server()
+        # Keep alive
+        while True:
+            time.sleep(60)
+        return
 
     # Ensure download directory exists
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -66,7 +79,6 @@ def main() -> None:
     start_health_server()
 
     # Build application
-    # If LOCAL_API_URL is set, connect to self-hosted Bot API server
     builder = ApplicationBuilder().token(BOT_TOKEN)
     
     if LOCAL_API_URL:
@@ -76,7 +88,13 @@ def main() -> None:
     else:
         logger.info("Using standard api.telegram.org (50MB limit)")
 
-    app = builder.build()
+    try:
+        app = builder.build()
+    except Exception as e:
+        logger.error(f"Failed to build application: {e}")
+        while True:
+            time.sleep(60)
+        return
 
     # Register handlers
     app.add_handler(CommandHandler("start", start_cmd))
@@ -93,16 +111,26 @@ def main() -> None:
         webhook_url = f"{WEBHOOK_URL}/webhook"
         logger.info(f"Starting in webhook mode: {webhook_url}")
         
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path="webhook",
-            webhook_url=webhook_url,
-        )
+        try:
+            app.run_webhook(
+                listen="0.0.0.0",
+                port=PORT,
+                url_path="webhook",
+                webhook_url=webhook_url,
+            )
+        except Exception as e:
+            logger.error(f"Webhook failed: {e}")
+            while True:
+                time.sleep(60)
     else:
-        # Polling mode (local dev)
+        # Polling mode (local dev / Railway without webhook)
         logger.info("Starting in polling mode...")
-        app.run_polling(drop_pending_updates=True)
+        try:
+            app.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            logger.error(f"Polling failed: {e}")
+            while True:
+                time.sleep(60)
 
 
 if __name__ == "__main__":
