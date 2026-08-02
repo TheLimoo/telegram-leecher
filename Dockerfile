@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     cmake \
+    gperf \
     libssl-dev \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -23,7 +24,7 @@ RUN mkdir -p /tmp/botapi-build/td \
     && cmake --build build -j$(nproc) \
     && cp build/telegram-bot-api /usr/local/bin/ \
     && rm -rf /tmp/botapi-build \
-    && apt-get purge -y --auto-remove build-essential cmake libssl-dev zlib1g-dev \
+    && apt-get purge -y --auto-remove build-essential cmake gperf libssl-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
