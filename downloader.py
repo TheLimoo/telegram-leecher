@@ -20,6 +20,10 @@ YOUTUBE_RE = re.compile(
     re.IGNORECASE
 )
 APARAT_RE = re.compile(r"aparat\.com", re.IGNORECASE)
+INSTAGRAM_RE = re.compile(
+    r"(?:instagram\.com/(?:reel|p|tv|stories|reels)/)",
+    re.IGNORECASE
+)
 GDRIVE_RE = re.compile(
     r"(drive\.google\.com/(file/d|drive|folders)|docs\.google\.com/(document|spreadsheets))",
     re.IGNORECASE,
@@ -37,6 +41,8 @@ def detect_source(url: str) -> str:
         return "gdrive"
     if YOUTUBE_RE.search(url) or APARAT_RE.search(url):
         return "youtube"
+    if INSTAGRAM_RE.search(url):
+        return "instagram"
     return "direct"
 
 
@@ -263,7 +269,7 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
         "--merge-output-format", "mp4",
         "--no-overwrites",
         "--restrict-filenames",
-        "--postprocessor-args", "ffmpeg:-crf 23",  # Balance quality/size
+        "--postprocessor-args", "ffmpeg:-crf 23 -preset fast",
         "--print-to-file", "after_move:filepath", "/dev/stdout",
         "--ignore-errors",
         "--no-warnings",
@@ -278,17 +284,30 @@ async def _download_youtube(url: str, dest: str, quality: str = "best", progress
             if line.strip() and os.path.exists(line.strip()):
                 return line.strip()
         
-        # Fallback: find the file
+        # Fallback: find the file (skip .part files)
         files = list(Path(dest).iterdir())
-        if files:
-            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+        valid_files = [f for f in files if f.is_file() and not f.name.endswith('.part')]
+        if valid_files:
+            return str(max(valid_files, key=lambda f: f.stat().st_size))
+        
+        # If only .part files exist, something went wrong - try without merge
+        part_files = [f for f in files if f.is_file() and f.name.endswith('.part')]
+        if part_files:
+            # Rename .part to final
+            part_file = max(part_files, key=lambda f: f.stat().st_size)
+            final_name = part_file.with_suffix('')  # Remove .part
+            if final_name.suffix == '':
+                final_name = final_name.with_suffix('.mp4')
+            part_file.rename(final_name)
+            return str(final_name)
     except TimeoutError:
         # Try simpler format on timeout
         cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
         stdout, stderr = await _run_process(cmd, timeout=300)
         files = list(Path(dest).iterdir())
-        if files:
-            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+        valid_files = [f for f in files if f.is_file() and not f.name.endswith('.part')]
+        if valid_files:
+            return str(max(valid_files, key=lambda f: f.stat().st_size))
     
     raise FileNotFoundError(f"No file downloaded from {url}")
 
@@ -311,11 +330,54 @@ async def _download_gdrive(url: str, dest: str, progress_cb: Optional[Callable] 
     return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
 
 
+async def _download_instagram(url: str, dest: str, progress_cb: Optional[Callable] = None) -> str:
+    """Download via yt-dlp (Instagram reels/posts). Always highest quality."""
+    output_template = os.path.join(dest, "%(title)s.%(ext)s")
+    
+    # Instagram - always best quality, no selection needed
+    cmd = [
+        "yt-dlp",
+        "-f", "best",
+        "-o", output_template,
+        "--no-playlist",
+        "--merge-output-format", "mp4",
+        "--no-overwrites",
+        "--restrict-filenames",
+        "--print-to-file", "after_move:filepath", "/dev/stdout",
+        "--ignore-errors",
+        "--no-warnings",
+        url,
+    ]
+    
+    try:
+        stdout, stderr = await _run_process(cmd, timeout=180)
+        
+        # Try to get filename from stdout
+        for line in stdout.strip().splitlines():
+            if line.strip() and os.path.exists(line.strip()):
+                return line.strip()
+        
+        # Fallback: find the file
+        files = list(Path(dest).iterdir())
+        if files:
+            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+    except TimeoutError:
+        # Try simpler format
+        cmd = ["yt-dlp", "-f", "best", "-o", output_template, "--no-playlist", url]
+        stdout, stderr = await _run_process(cmd, timeout=120)
+        files = list(Path(dest).iterdir())
+        if files:
+            return str(max(files, key=lambda f: f.stat().st_size if f.is_file() else 0))
+    
+    raise FileNotFoundError(f"No file downloaded from Instagram: {url}")
+
+
 DOWNLOADERS = {
     "direct": _download_direct,
     "magnet": _download_magnet,
     "torrent": _download_torrent_file,
     "youtube": _download_youtube,
+    "instagram": _download_instagram,
     "gdrive": _download_gdrive,
 }
 

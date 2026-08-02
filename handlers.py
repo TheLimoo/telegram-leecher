@@ -28,6 +28,7 @@ SOURCE_EMOJI = {
     "magnet": "🧲",
     "torrent": "📄",
     "youtube": "📺",
+    "instagram": "📸",
     "gdrive": "📁",
 }
 
@@ -53,6 +54,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "🧲 Magnet links\n"
         "📄 Torrent file URLs\n"
         "📺 YouTube / Aparat videos\n"
+        "📸 Instagram reels/posts\n"
         "📁 Google Drive links\n\n"
         "Just paste any link and I'll handle the rest! ⬇️",
         parse_mode=ParseMode.HTML,
@@ -74,6 +76,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "• <code>https://example.com/file.zip</code>\n"
         "• <code>magnet:?xt=urn:btih:...</code>\n"
         "• <code>https://youtube.com/watch?v=...</code>\n"
+        "• <code>https://instagram.com/reel/...</code>\n"
         "• <code>https://drive.google.com/file/d/...</code>\n\n"
         "<b>Commands:</b>\n"
         "/start — Welcome message\n"
