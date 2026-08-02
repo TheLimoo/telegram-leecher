@@ -14,8 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Build self-hosted Telegram Bot API server
 # This removes the 50MB upload limit (allows up to 2GB)
-ENV GIT_TERMINAL_PROMPT=0
-RUN git clone --depth 1 https://github.com/telegram-bot-api/telegram-bot-api.git /tmp/botapi \
+# Download source as tarball (avoids git auth issues on some platforms)
+RUN curl -sL https://github.com/tdlib/telegram-bot-api/archive/refs/heads/master.tar.gz \
+    | tar xz -C /tmp/ \
+    && mv /tmp/telegram-bot-api-master /tmp/botapi \
     && cd /tmp/botapi \
     && cmake -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build -j$(nproc) \
