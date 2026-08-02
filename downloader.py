@@ -71,20 +71,26 @@ async def get_youtube_formats(url: str) -> list[dict]:
         "-J",  # JSON output
         "--no-playlist",
         "--no-warnings",
+        "--socket-timeout", "10",
         url,
     ]
     
     try:
         stdout, stderr = await _run_process(cmd, timeout=30)
         
+        if not stdout or not stdout.strip():
+            logger.error(f"yt-dlp returned empty output. stderr: {stderr[:500]}")
+            return []
+        
         # Try to parse JSON
         try:
             data = json.loads(stdout)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse yt-dlp JSON: {stdout[:200]}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse yt-dlp JSON: {e}. stdout: {stdout[:500]}")
             return []
         
         if not data:
+            logger.error("yt-dlp JSON is empty")
             return []
         
         formats = []
@@ -126,6 +132,8 @@ async def get_youtube_formats(url: str) -> list[dict]:
         
         # Sort by resolution (highest first)
         formats.sort(key=lambda x: x["height"], reverse=True)
+        
+        logger.info(f"Found {len(formats)} formats for {url}")
         
         # Keep only best 5 formats to avoid overwhelming the user
         return formats[:5]
