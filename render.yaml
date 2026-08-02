@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: telegram-leecher
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ALLOWED_USERS
+        sync: false
+      - key: WEBHOOK_URL
+        generateValue: false
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false
+      - key: LOCAL_API_URL
+        value: "http://127.0.0.1:8081"
+      - key: PYTHON_VERSION
+        value: "3.11"

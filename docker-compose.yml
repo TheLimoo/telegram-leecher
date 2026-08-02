@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  bot:
+    build: .
+    container_name: leecher-bot
+    env_file: .env
+    environment:
+      - LOCAL_API_URL=http://127.0.0.1:8081
+    ports:
+      - "8443:8443"
+    volumes:
+      - downloads:/tmp/downloads
+    restart: unless-stopped
+
+volumes:
+  downloads:
