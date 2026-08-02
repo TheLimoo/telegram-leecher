@@ -17,7 +17,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
 from config import BOT_TOKEN, WEBHOOK_URL, PORT, LOCAL_API_URL, DOWNLOAD_DIR
-from handlers import start_cmd, help_cmd, cancel_cmd, handle_message, post_init
+from handlers import start_cmd, help_cmd, cancel_cmd, handle_message, post_init, test_api_cmd
 
 # Setup logging
 logging.basicConfig(
