@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Start self-hosted Bot API server if credentials are provided
+# Start self-hosted Bot API server ONLY if credentials are provided
 if [ -n "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; then
     echo "🔧 Starting self-hosted Bot API server..."
     mkdir -p /tmp/botapi-data
@@ -24,6 +24,7 @@ if [ -n "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; then
         fi
         if [ $i -eq 30 ]; then
             echo "⚠️ Bot API server failed to start, falling back to standard API"
+            kill $BOTAPI_PID 2>/dev/null || true
             unset LOCAL_API_URL
         fi
         sleep 1
@@ -31,6 +32,7 @@ if [ -n "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; then
 else
     echo "ℹ️ No TELEGRAM_API_ID/HASH — using standard api.telegram.org (50MB limit)"
     echo "   Set these env vars to enable unlimited uploads!"
+    unset LOCAL_API_URL
 fi
 
 # Start the bot
