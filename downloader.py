@@ -76,7 +76,16 @@ async def get_youtube_formats(url: str) -> list[dict]:
     
     try:
         stdout, stderr = await _run_process(cmd, timeout=30)
-        data = json.loads(stdout)
+        
+        # Try to parse JSON
+        try:
+            data = json.loads(stdout)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse yt-dlp JSON: {stdout[:200]}")
+            return []
+        
+        if not data:
+            return []
         
         formats = []
         seen_resolutions = set()
