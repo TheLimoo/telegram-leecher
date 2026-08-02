@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
 """Telegram Leecher Bot — main entry point.
 
 Supports:
@@ -73,10 +72,11 @@ def main() -> None:
     start_health_server()
 
     # Build application
-    # Use self-hosted Bot API (removes 50MB limit)
+    # Use local_mode for self-hosted Bot API (properly handles token in URL)
+    # local_mode=True connects to http://localhost:8081 automatically
     if LOCAL_API_URL:
-        logger.info(f"Using self-hosted Bot API: {LOCAL_API_URL}")
-        builder = ApplicationBuilder().token(BOT_TOKEN).base_url(LOCAL_API_URL).base_file_url(LOCAL_API_URL)
+        logger.info(f"Using self-hosted Bot API (local_mode=True)")
+        builder = ApplicationBuilder().token(BOT_TOKEN).local_mode(True)
     else:
         logger.info("Using standard api.telegram.org (50MB limit)")
         builder = ApplicationBuilder().token(BOT_TOKEN)

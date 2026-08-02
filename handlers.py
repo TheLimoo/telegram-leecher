@@ -112,14 +112,17 @@ async def test_api_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if LOCAL_API_URL:
         import aiohttp
         try:
+            # When using local_mode, the base URL is http://localhost:8081/bot<token>/
+            # We can test by calling getMe
+            bot_token = context.bot.token
+            test_url = f"http://127.0.0.1:8081/bot{bot_token}/getMe"
             async with aiohttp.ClientSession() as session:
-                # Use getMe endpoint (standard Bot API endpoint)
-                async with session.post(f"{LOCAL_API_URL}/bot{context.bot.token}/getMe", timeout=5) as resp:
+                async with session.post(test_url, timeout=5) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         await update.message.reply_text(
                             "✅ <b>Self-hosted Bot API is running!</b>\n"
-                            f"📍 URL: <code>{LOCAL_API_URL}</code>\n"
+                            f"📍 URL: <code>http://127.0.0.1:8081</code>\n"
                             f"🤖 Bot: @{data.get('result', {}).get('username', 'unknown')}\n"
                             "📤 Upload limit: <b>2 GB</b>",
                             parse_mode=ParseMode.HTML,
