@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
+#!/usr/bin/env python3
 """Telegram Leecher Bot — main entry point.
 
 Supports:
-- Polling mode (local dev)
-- Webhook mode (production on Render/Railway)
+- Polling mode (local dev / Railway)
 - Self-hosted Bot API (removes 50MB upload limit) - uses local_mode
+- Health check endpoint for Railway/Render (separate thread)
 """
 import logging
 import os
 import sys
+import threading
 import time
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
@@ -24,10 +27,38 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class HealthHandler(BaseHTTPRequestHandler):
+    """Simple health check handler for Railway/Render."""
+    
+    def do_GET(self):
+        if self.path in ("/", "/health", "/healthz", "/ready"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def do_HEAD(self):
+        self.do_GET()
+    
+    def log_message(self, format, *args):
+        logger.info(f"Health check: {self.path} -> 200")
+
+
+def start_health_server():
+    """Start health check server in background thread on PORT."""
+    server = HTTPServer(("0.0.0.0", PORT), HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info(f"Health check server started on port {PORT}")
+
+
 def main() -> None:
     logger.info("=== Telegram Leecher Bot Starting ===")
     logger.info(f"PORT: {PORT}")
-    logger.info(f"WEBHOOK_URL: {WEBHOOK_URL or 'not set (polling mode)'}")
+    logger.info(f"WEBHOOK_URL: {WEBHOOK_URL or 'not set'}")
     logger.info(f"LOCAL_API_URL: {LOCAL_API_URL or 'not set (standard API)'}")
     logger.info(f"DOWNLOAD_DIR: {DOWNLOAD_DIR}")
     
@@ -37,6 +68,9 @@ def main() -> None:
 
     # Ensure download directory exists
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+    # Start health check server (required for Railway/Render)
+    start_health_server()
 
     # Build application
     # Use local_mode for self-hosted Bot API (properly handles token in URL)
@@ -62,25 +96,13 @@ def main() -> None:
     # Post-init: set bot commands
     app.post_init = post_init
 
-    # Start the bot
-    if WEBHOOK_URL:
-        # Webhook mode (production) - requires proper health endpoint setup
-        # For now, use polling mode which works reliably on Railway
-        logger.info("WEBHOOK_URL set but using polling mode for Railway compatibility")
-        logger.info("Starting in polling mode...")
-        try:
-            app.run_polling(drop_pending_updates=True)
-        except Exception as e:
-            logger.error(f"Polling failed: {e}")
-            sys.exit(1)
-    else:
-        # Polling mode (local dev / Railway)
-        logger.info("Starting in polling mode...")
-        try:
-            app.run_polling(drop_pending_updates=True)
-        except Exception as e:
-            logger.error(f"Polling failed: {e}")
-            sys.exit(1)
+    # Start the bot in polling mode (works on Railway)
+    logger.info("Starting in polling mode...")
+    try:
+        app.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        logger.error(f"Polling failed: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
